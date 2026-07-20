@@ -39,16 +39,16 @@ Whether it's a star, a professional connection, or a coffee, every gesture helps
 
 ## 🗺️ Where this fits in the family
 
-`tf-mod-aws-global-accelerator` is an **edge module** — it consumes regional endpoints (ALB/NLB by ARN, EIP by allocation id, EC2 by instance id) and an optional flow-log bucket from upstream siblings, and is itself consumed only by DNS (Route 53 records pointing at the accelerator).
+`terraform-aws-global-accelerator` is an **edge module** — it consumes regional endpoints (ALB/NLB by ARN, EIP by allocation id, EC2 by instance id) and an optional flow-log bucket from upstream siblings, and is itself consumed only by DNS (Route 53 records pointing at the accelerator).
 
 ```mermaid
 flowchart LR
- lb["tf-mod-aws-lb<br/>ALB / NLB (arn)"]
- eip["tf-mod-aws-elastic-ip<br/>EIP allocation id"]
- ec2["tf-mod-aws-ec2-instance<br/>instance id"]
- s3["tf-mod-aws-s3-bucket<br/>flow-log bucket"]
- ga["tf-mod-aws-global-accelerator"]
- r53["tf-mod-aws-route53-zone<br/>alias / A records"]
+ lb["terraform-aws-lb<br/>ALB / NLB (arn)"]
+ eip["terraform-aws-elastic-ip<br/>EIP allocation id"]
+ ec2["terraform-aws-ec2-instance<br/>instance id"]
+ s3["terraform-aws-s3-bucket<br/>flow-log bucket"]
+ ga["terraform-aws-global-accelerator"]
+ r53["terraform-aws-route53-zone<br/>alias / A records"]
 
  lb -->|"endpoint_id (ARN)"| ga
  eip -->|"endpoint_id (alloc id)"| ga
@@ -65,7 +65,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
- subgraph mod["tf-mod-aws-global-accelerator"]
+ subgraph mod["terraform-aws-global-accelerator"]
  acc["aws_globalaccelerator_accelerator.this<br/>(keystone)<br/>2 anycast static IPs · flow logs"]
  lst["aws_globalaccelerator_listener.this<br/>for_each listeners<br/>protocol · port ranges · affinity"]
  epg["aws_globalaccelerator_endpoint_group.this<br/>for_each endpoint_groups<br/>region · health checks · traffic dial"]
@@ -104,7 +104,7 @@ provider "aws" {} # your working region
 provider "aws" { alias = "us_west_2", region = "us-west-2" }
 
 module "global_accelerator" {
- source = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+ source = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
  providers = { aws = aws.us_west_2 }
  #...
 }
@@ -126,7 +126,7 @@ Least-privilege actions the **Terraform execution identity** needs to manage thi
 | `elasticloadbalancing:DescribeLoadBalancers` | Resolving ALB/NLB endpoints | On endpoints referenced by ARN |
 | `ec2:DescribeAddresses` | Resolving EIP endpoints | On endpoints referenced by allocation id |
 | `ec2:DescribeInstances` | Resolving EC2 endpoints | On endpoints referenced by instance id |
-| `s3:PutBucketPolicy`, `s3:GetBucketPolicy` | Flow-log delivery to S3 | Only if this identity also manages the flow-log bucket policy (preferably owned by `tf-mod-aws-s3-bucket`) |
+| `s3:PutBucketPolicy`, `s3:GetBucketPolicy` | Flow-log delivery to S3 | Only if this identity also manages the flow-log bucket policy (preferably owned by `terraform-aws-s3-bucket`) |
 
 > 🔒 **No service-linked role** is created by this module, and Global Accelerator requires none. Client IP preservation does **not** need an extra IAM action here, but it changes the security posture of the *endpoint's* security group — see Prerequisites.
 
@@ -136,9 +136,9 @@ Least-privilege actions the **Terraform execution identity** needs to manage thi
 
 - **🇺🇸 us-west-2 control plane (mandatory).** Global Accelerator is a single global service whose control-plane API is hosted in **`us-west-2`**. The accelerator itself is global (anycast from the edge network); endpoint groups can target **any** Region. Point the module's provider at `us-west-2` (directly or via an alias). **Do NOT add a `region` variable** — Region for the accelerator is expressed through the provider, and per-endpoint-group Region is set with `endpoint_group_region`.
 - **No service-linked role** is required for Global Accelerator.
-- **Endpoints must pre-exist.** ALB/NLB (`tf-mod-aws-lb`), Elastic IPs (`tf-mod-aws-elastic-ip`), or EC2 instances (`tf-mod-aws-ec2-instance`) must already exist and be referenced by ARN / allocation id / instance id. An NLB/ALB endpoint must be in the `endpoint_group_region` of its group.
+- **Endpoints must pre-exist.** ALB/NLB (`terraform-aws-lb`), Elastic IPs (`terraform-aws-elastic-ip`), or EC2 instances (`terraform-aws-ec2-instance`) must already exist and be referenced by ARN / allocation id / instance id. An NLB/ALB endpoint must be in the `endpoint_group_region` of its group.
 - **Client IP preservation security-group impact.** When `client_ip_preservation_enabled = true` for an ALB/EC2 endpoint, the **client's** source IP reaches the endpoint — so the endpoint's security group must allow the real client CIDRs (or the Global Accelerator managed prefix list, `com.amazonaws.global.globalaccelerator`), **not** the accelerator's IPs. Preservation effectively bypasses any allow-list keyed on the accelerator addresses — review the endpoint SGs before enabling it ([guidelines](https://docs.aws.amazon.com/global-accelerator/latest/dg/preserve-client-ip-address.how-to-enable-preservation.html)). NLB endpoints preserve client IP inherently.
-- **Flow logs (optional).** Supplying `flow_logs_s3_bucket` enables flow logs; the bucket must already exist with a policy granting the Global Accelerator service write access under the configured `flow_logs_s3_prefix`. Wire the bucket from `tf-mod-aws-s3-bucket`.
+- **Flow logs (optional).** Supplying `flow_logs_s3_bucket` enables flow logs; the bucket must already exist with a policy granting the Global Accelerator service write access under the configured `flow_logs_s3_prefix`. Wire the bucket from `terraform-aws-s3-bucket`.
 - **BYOIP (optional).** To pin your own addresses via `ip_addresses`, the IPv4 range must already be provisioned and advertised to Global Accelerator through BYOIP; otherwise AWS assigns the two anycast IPs.
 - **Quotas** (per [Global Accelerator quotas](https://docs.aws.amazon.com/global-accelerator/latest/dg/limits-global-accelerator.html); raisable via Service Quotas):
  - **10 accelerators** per account.
@@ -151,7 +151,7 @@ Least-privilege actions the **Terraform execution identity** needs to manage thi
 ## 📁 Module Structure
 
 ```
-tf-mod-aws-global-accelerator/
+terraform-aws-global-accelerator/
 ├── providers.tf # required_providers (aws >= 6.0, < 7.0); no provider block; us-west-2 note
 ├── variables.tf # name → accelerator scalars → flow logs → listeners → endpoint_groups → tags → timeouts
 ├── main.tf # aws_globalaccelerator_accelerator.this + listener / endpoint_group for_each
@@ -168,7 +168,7 @@ Smallest working call — a single TCP/443 listener fronting an ALB in one Regio
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 } # GA control plane is us-west-2
 
   name = "casey-web-ga"
@@ -187,7 +187,7 @@ module "global_accelerator" {
       health_check_protocol = "HTTPS"
       health_check_path     = "/health"
       endpoints = [
-        { endpoint_id = module.alb.arn } # ALB ARN from tf-mod-aws-lb
+        { endpoint_id = module.alb.arn } # ALB ARN from terraform-aws-lb
       ]
     }
   }
@@ -204,10 +204,10 @@ module "global_accelerator" {
 
 | Input | Type | Source module |
 |---|---|---|
-| `endpoint_groups[*].endpoints[*].endpoint_id` | `string` (ALB/NLB ARN) | `tf-mod-aws-lb` |
-| `endpoint_groups[*].endpoints[*].endpoint_id` | `string` (EIP allocation id) | `tf-mod-aws-elastic-ip` |
-| `endpoint_groups[*].endpoints[*].endpoint_id` | `string` (EC2 instance id) | `tf-mod-aws-ec2-instance` |
-| `flow_logs_s3_bucket` | `string` (bucket name) | `tf-mod-aws-s3-bucket` |
+| `endpoint_groups[*].endpoints[*].endpoint_id` | `string` (ALB/NLB ARN) | `terraform-aws-lb` |
+| `endpoint_groups[*].endpoints[*].endpoint_id` | `string` (EIP allocation id) | `terraform-aws-elastic-ip` |
+| `endpoint_groups[*].endpoints[*].endpoint_id` | `string` (EC2 instance id) | `terraform-aws-ec2-instance` |
+| `flow_logs_s3_bucket` | `string` (bucket name) | `terraform-aws-s3-bucket` |
 
 ### Emits
 
@@ -235,7 +235,7 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name = "casey-app-ga"
@@ -260,7 +260,7 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name = "casey-ha-ga"
@@ -275,14 +275,14 @@ module "global_accelerator" {
       endpoint_group_region = "us-east-1"
       health_check_protocol = "HTTPS"
       health_check_path     = "/health"
-      endpoints             = [{ endpoint_id = module.alb_use1.arn }] # from tf-mod-aws-lb (us-east-1)
+      endpoints             = [{ endpoint_id = module.alb_use1.arn }] # from terraform-aws-lb (us-east-1)
     }
     usw2 = {
       listener_key          = "https"
       endpoint_group_region = "us-west-2"
       health_check_protocol = "HTTPS"
       health_check_path     = "/health"
-      endpoints             = [{ endpoint_id = module.alb_usw2.arn }] # from tf-mod-aws-lb (us-west-2)
+      endpoints             = [{ endpoint_id = module.alb_usw2.arn }] # from terraform-aws-lb (us-west-2)
     }
   }
 }
@@ -295,7 +295,7 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name = "casey-cutover-ga"
@@ -327,7 +327,7 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name = "casey-weighted-ga"
@@ -355,7 +355,7 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name = "casey-udp-ga"
@@ -384,7 +384,7 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name = "casey-sticky-ga"
@@ -413,7 +413,7 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name = "casey-portmap-ga"
@@ -441,7 +441,7 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name = "casey-clientip-ga"
@@ -470,7 +470,7 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name = "casey-eip-ga"
@@ -484,8 +484,8 @@ module "global_accelerator" {
       listener_key          = "tcp"
       endpoint_group_region = "us-east-1"
       endpoints = [
-        { endpoint_id = module.bastion_eip.allocation_id }, # from tf-mod-aws-elastic-ip
-        { endpoint_id = module.jump_box.id, weight = 0 },   # from tf-mod-aws-ec2-instance (drained)
+        { endpoint_id = module.bastion_eip.allocation_id }, # from terraform-aws-elastic-ip
+        { endpoint_id = module.jump_box.id, weight = 0 },   # from terraform-aws-ec2-instance (drained)
       ]
     }
   }
@@ -498,13 +498,13 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name = "casey-logged-ga"
 
   # Supplying the bucket turns flow logs ON automatically.
-  flow_logs_s3_bucket = module.ga_log_bucket.id # from tf-mod-aws-s3-bucket
+  flow_logs_s3_bucket = module.ga_log_bucket.id # from terraform-aws-s3-bucket
   flow_logs_s3_prefix = "global-accelerator/"
 
   listeners = {
@@ -527,7 +527,7 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name            = "casey-dualstack-ga"
@@ -554,7 +554,7 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name         = "casey-byoip-ga"
@@ -587,7 +587,7 @@ provider "aws" {
 }
 
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name = "casey-tagged-ga"
@@ -610,7 +610,7 @@ module "global_accelerator" {
 
 ```hcl
 module "global_accelerator" {
-  source    = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+  source    = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
   providers = { aws = aws.us_west_2 }
 
   name    = "casey-staged-ga"
@@ -636,21 +636,21 @@ provider "aws" { alias = "us_west_2", region = "us-west-2" } # GA control plane
 
 # Regional load balancer (TLS terminated here with an ACM cert)
 module "alb" {
- source = "git::https://github.com/microsoftexpert/tf-mod-aws-lb?ref=v1.0.0"
+ source = "git::https://github.com/microsoftexpert/terraform-aws-lb?ref=v1.0.0"
  name = "casey-web-alb"
- vpc_id = module.vpc.id # from tf-mod-aws-vpc
+ vpc_id = module.vpc.id # from terraform-aws-vpc
  subnet_ids = module.vpc.public_subnet_ids
 }
 
 # Flow-log bucket (private, SSE-KMS on by default)
 module "ga_log_bucket" {
- source = "git::https://github.com/microsoftexpert/tf-mod-aws-s3-bucket?ref=v1.0.0"
+ source = "git::https://github.com/microsoftexpert/terraform-aws-s3-bucket?ref=v1.0.0"
  bucket = "casey-ga-flow-logs"
 }
 
 # This module — the global front door
 module "global_accelerator" {
- source = "git::https://github.com/microsoftexpert/tf-mod-aws-global-accelerator?ref=v1.0.0"
+ source = "git::https://github.com/microsoftexpert/terraform-aws-global-accelerator?ref=v1.0.0"
  providers = { aws = aws.us_west_2 }
 
  name = "casey-web-ga"
@@ -675,7 +675,7 @@ module "global_accelerator" {
 
 # DNS — alias the host at the accelerator (uses GA's hosted zone id)
 module "dns" {
- source = "git::https://github.com/microsoftexpert/tf-mod-aws-route53-zone?ref=v1.0.0"
+ source = "git::https://github.com/microsoftexpert/terraform-aws-route53-zone?ref=v1.0.0"
  zone_name = "example.com"
  records = {
  app = {
@@ -691,7 +691,7 @@ module "dns" {
 }
 ```
 
-> ⚠️ The flow-log bucket policy granting the Global Accelerator service write access is owned by `tf-mod-aws-s3-bucket` — this module does not mutate the bucket. TLS is terminated at the ALB (Global Accelerator operates at L4 and forwards traffic unmodified).
+> ⚠️ The flow-log bucket policy granting the Global Accelerator service write access is owned by `terraform-aws-s3-bucket` — this module does not mutate the bucket. TLS is terminated at the ALB (Global Accelerator operates at L4 and forwards traffic unmodified).
 </details>
 
 ---
@@ -759,13 +759,13 @@ Secure-by-default posture and every opt-out, explicitly:
 | Client affinity | `NONE` (stateless five-tuple hash) | `SOURCE_IP` (two-tuple stickiness) when the app requires it |
 | Client IP exposure | `client_ip_preservation_enabled = false` (endpoint sees the accelerator IP) | `true` — but you must then open the endpoint SG to real client CIDRs |
 | IP family | `IPV4` | `DUAL_STACK` |
-| TLS termination | at the regional endpoint (ALB/NLB + ACM cert) — GA forwards L4 unmodified | n/a — certificate management stays in `tf-mod-aws-lb` / `tf-mod-aws-acm` |
+| TLS termination | at the regional endpoint (ALB/NLB + ACM cert) — GA forwards L4 unmodified | n/a — certificate management stays in `terraform-aws-lb` / `terraform-aws-acm` |
 
 Other principles:
 - **One composite, one keystone.** The accelerator owns only the resources meaningless without it (listeners, endpoint groups). Regional endpoints (ALB/NLB/EIP/EC2) and the flow-log bucket are referenced by ARN/id from sibling modules, keeping blast radius to the Global Accelerator objects.
 - **`for_each`, never `count`,** for listeners and endpoint groups — keyed by stable caller strings so adding/removing one never re-indexes the others.
 - **Primary outputs `id` + `arn`,** plus `dns_name`, `hosted_zone_id`, `static_ip_addresses`, the child-collection maps, and `tags_all`.
-- **Route 53 stays separate.** Alias/A records are owned by `tf-mod-aws-route53-zone` (consume `dns_name` + `hosted_zone_id`), not duplicated here.
+- **Route 53 stays separate.** Alias/A records are owned by `terraform-aws-route53-zone` (consume `dns_name` + `hosted_zone_id`), not duplicated here.
 
 ---
 
@@ -820,7 +820,7 @@ tags_all = { "DataClass" = "internal", "Environment" = "prod" }
 | Static IPs changed unexpectedly after a change | `ip_address_type` / `ip_addresses` are FORCE-NEW — the accelerator was replaced | Update DNS A records and partner allow-lists to the new `static_ip_addresses` |
 | Endpoint shows unhealthy / no traffic | Health-check path/port/protocol mismatch, or endpoint SG blocks GA health checks | Align `health_check_*` with the listener; allow the GA managed prefix list inbound on the endpoint SG |
 | Client IP allow-list on the endpoint stops working | `client_ip_preservation_enabled = true` made the endpoint see the *client* IP, not the accelerator IP | Open the endpoint SG to real client CIDRs (or disable preservation) — see Prerequisites |
-| Flow logs not appearing in S3 | Bucket policy doesn't grant the Global Accelerator service write access | Add the delivery policy on the bucket (owned by `tf-mod-aws-s3-bucket`); verify `flow_logs_s3_prefix` |
+| Flow logs not appearing in S3 | Bucket policy doesn't grant the Global Accelerator service write access | Add the delivery policy on the bucket (owned by `terraform-aws-s3-bucket`); verify `flow_logs_s3_prefix` |
 | `destroy` is slow / `AcceleratorNotDisabled` | Accelerator must be disabled before deletion | Expected — Terraform disables then deletes; let it complete |
 | `LimitExceededException` on create | Hit the 10-accelerator / 10-listener / 10-endpoint-group quota | Raise the relevant quota via Service Quotas |
 | Tag drift on every plan | A tag also set by provider `default_tags` with a different value | Let resource tags win, or remove the overlap from `default_tags` |
@@ -834,7 +834,7 @@ tags_all = { "DataClass" = "internal", "Environment" = "prod" }
 - [Preserve client IP addresses](https://docs.aws.amazon.com/global-accelerator/latest/dg/preserve-client-ip-address.html) · [Guidelines & restrictions for client IP preservation](https://docs.aws.amazon.com/global-accelerator/latest/dg/preserve-client-ip-address.how-to-enable-preservation.html)
 - [Global Accelerator quotas](https://docs.aws.amazon.com/global-accelerator/latest/dg/limits-global-accelerator.html)
 - Terraform: [`aws_globalaccelerator_accelerator`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/globalaccelerator_accelerator) · [`aws_globalaccelerator_listener`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/globalaccelerator_listener) · [`aws_globalaccelerator_endpoint_group`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/globalaccelerator_endpoint_group)
-- Sibling modules: `tf-mod-aws-lb`, `tf-mod-aws-elastic-ip`, `tf-mod-aws-ec2-instance`, `tf-mod-aws-s3-bucket`, `tf-mod-aws-route53-zone`, `tf-mod-aws-vpc`
+- Sibling modules: `terraform-aws-lb`, `terraform-aws-elastic-ip`, `terraform-aws-ec2-instance`, `terraform-aws-s3-bucket`, `terraform-aws-route53-zone`, `terraform-aws-vpc`
 - Module internals: `SCOPE.md`
 
 ---

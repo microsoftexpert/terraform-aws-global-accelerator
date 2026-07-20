@@ -1,4 +1,4 @@
-# tf-mod-aws-global-accelerator — SCOPE
+# terraform-aws-global-accelerator — SCOPE
 
 Composite module for AWS Global Accelerator. It owns the accelerator (with its two
 anycast static IPs), the listeners, and the endpoint groups that route to regional
@@ -20,17 +20,17 @@ The module manages the following (allow-list):
 
 Referenced by `id`/`arn`, never created here:
 
-- ALB/NLB endpoints — `arn` (from `tf-mod-aws-lb`)
-- Elastic IP endpoints — allocation `id` (from `tf-mod-aws-elastic-ip`)
-- EC2 instance endpoints — instance `id` (from `tf-mod-aws-ec2-instance`)
-- S3 access-log bucket for flow logs — bucket name (from `tf-mod-aws-s3-bucket`)
+- ALB/NLB endpoints — `arn` (from `terraform-aws-lb`)
+- Elastic IP endpoints — allocation `id` (from `terraform-aws-elastic-ip`)
+- EC2 instance endpoints — instance `id` (from `terraform-aws-ec2-instance`)
+- S3 access-log bucket for flow logs — bucket name (from `terraform-aws-s3-bucket`)
 
 ## Consumes
 
 | Input | Type | Source module |
 |---|---|---|
-| `endpoint_groups[*].endpoints[*].endpoint_id` | `string` (ALB/NLB ARN, EIP alloc id, instance id) | `tf-mod-aws-lb` / `tf-mod-aws-elastic-ip` / `tf-mod-aws-ec2-instance` |
-| `flow_logs_s3_bucket` | `string` (bucket name) | `tf-mod-aws-s3-bucket` |
+| `endpoint_groups[*].endpoints[*].endpoint_id` | `string` (ALB/NLB ARN, EIP alloc id, instance id) | `terraform-aws-lb` / `terraform-aws-elastic-ip` / `terraform-aws-ec2-instance` |
+| `flow_logs_s3_bucket` | `string` (bucket name) | `terraform-aws-s3-bucket` |
 
 ## Required IAM permissions
 
@@ -52,7 +52,7 @@ Least-privilege actions the Terraform identity needs:
   The accelerator itself is global (anycast). Do NOT add a `region` variable — use a
   provider alias if the caller's default region is not us-west-2.
 - **No service-linked role** is required for Global Accelerator.
-- **Endpoints must pre-exist:** ALB/NLB (`tf-mod-aws-lb`), EIP (`tf-mod-aws-elastic-ip`),
+- **Endpoints must pre-exist:** ALB/NLB (`terraform-aws-lb`), EIP (`terraform-aws-elastic-ip`),
   or EC2 instances must exist and be referenced by ARN / id.
 - **Client IP preservation** for ALB/EC2 endpoints requires the endpoint's security
   group to allow real client CIDRs (or the Global Accelerator managed prefix list
@@ -117,4 +117,4 @@ Least-privilege actions the Terraform identity needs:
 - Regional endpoints (ALB/NLB/EIP) are referenced by ARN/id from sibling modules, keeping
   the blast radius to the Global Accelerator objects.
 - TLS is terminated at the regional load balancer (Global Accelerator operates at L4),
-  so certificate management stays in `tf-mod-aws-lb` / `tf-mod-aws-acm`.
+  so certificate management stays in `terraform-aws-lb` / `terraform-aws-acm`.
